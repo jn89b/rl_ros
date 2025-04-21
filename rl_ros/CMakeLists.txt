@@ -57,6 +57,7 @@ install(PROGRAMS
   scripts/guidance_publisher.py
   scripts/pursuer.py
   scripts/evader.py
+  scripts/pursuer_2.py
   # scripts/client_member_function.py
   # scripts/service_member_function.py
   DESTINATION lib/${PROJECT_NAME}

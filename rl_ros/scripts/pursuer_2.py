@@ -88,8 +88,8 @@ class PursuerNode(Node):
         super().__init__('pursuer_node')
         
         # make params to set offset positions
-        self.declare_parameter('offset_x', 200.0)
-        self.declare_parameter('offset_y', 50.0)
+        self.declare_parameter('offset_x', -200.0)
+        self.declare_parameter('offset_y', 0.0)
         self.declare_parameter('offset_z', 45.0) 
         self.declare_parameter('offset_yaw_dg', 0.0) 
         self.offset_x: float = self.get_parameter('offset_x').value
@@ -114,10 +114,13 @@ class PursuerNode(Node):
                                                   'mavros/local_position/odom',
                                                   self.target_sub_callback,
                                                   qos_profile=SENSOR_QOS)
+        self.pursuer_str: str = '/pursuer_2'
+        self.odom_topic:str = "/pursuer_2/odometry"
+        self.scaled_odom_topic:str = "/pursuer_2/scaled_odometry"
         self.pursuer_odometry_pub: Publisher = self.create_publisher(
-            Odometry, '/pursuer/odometry', 10)
+            Odometry, self.odom_topic, 10)
         self.scaled_pursuer_odometry_pub: Publisher = self.create_publisher(
-            Odometry, '/pursuer/scaled_odometry', 10)
+            Odometry, self.scaled_odom_topic, 10)
         self.scale_value:int = 50
         self.timer_value: float = 0.05
         # self.timer = self.create_timer(self.timer_value, self.step)
@@ -230,7 +233,7 @@ class PursuerNode(Node):
         msg = Odometry()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'map'
-        msg.child_frame_id = 'base_link'
+        msg.child_frame_id = 'base_link_2'
         msg.pose.pose.position.x = self.enu_state[X_IDX]
         msg.pose.pose.position.y = self.enu_state[Y_IDX]
         msg.pose.pose.position.z = self.enu_state[Z_IDX]
@@ -251,7 +254,7 @@ class PursuerNode(Node):
         msg = Odometry()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'map'
-        msg.child_frame_id = 'base_link'
+        msg.child_frame_id = 'base_link_2'
         msg.pose.pose.position.x = self.enu_state[X_IDX] / self.scale_value
         msg.pose.pose.position.y = self.enu_state[Y_IDX] / self.scale_value
         msg.pose.pose.position.z = self.enu_state[Z_IDX] / self.scale_value

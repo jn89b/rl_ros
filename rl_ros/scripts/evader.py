@@ -160,7 +160,7 @@ class EvaderNode(Node):
         self.state_enu: np.ndarray = np.zeros(7)
         self.velocities: np.ndarray = np.zeros(3)
         self.target_location: np.ndarray = np.array(
-            [350, 75, 65.0])
+            [0, 150, 65.0])
         
         self.pub_traj = self.create_publisher(
             CtlTraj, 'trajectory', 10)
@@ -424,7 +424,7 @@ class EvaderNode(Node):
             target_pos:np.ndarray = np.array(self.target_location[0:3])
             relative_pos:List[float] = target_pos - current_pos
             distance = np.linalg.norm(relative_pos)
-            print(f"Distance to target: {distance}")
+            # print(f"Distance to target: {distance}")
             #relative_vel: float = self.target_location[VX_IDX] - self.enu_state[VX_IDX]
             relative_vel: float = self.state_enu[VX_IDX]
             max_vel:float = 30.0
@@ -526,6 +526,7 @@ class EvaderNode(Node):
                 # we will use the offensive policy
                 observation = self.get_pursuer_observation()
                 action = self.get_pursuer_action(observation)
+                print("Offensive policy")
             elif self.current_policy == DEFENSIVE_IDX:
                 print("Defensive policy")
                 observation = self.get_evader_observation()
