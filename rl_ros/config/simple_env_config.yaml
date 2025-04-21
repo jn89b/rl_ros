@@ -1,0 +1,165 @@
+# Configurations for battlespace environment
+battlespace_environment:
+  bounds:
+    x: [-1500, 1500]
+    y: [-1500, 1500]
+    z: [30, 100]
+
+  spawning:
+    distance_from_other_agents:
+      min: 225
+      max: 450
+    target:
+      randomize: true
+      position:
+        x: 300
+        y: -450
+        z: 50
+      spawn_radius_from_agent:
+        min: 350
+        max: 600
+
+  # Used to define resolution of sim 
+  simulation:
+    dt: 0.05 
+    frequency: 100  # Hz
+    end_time: 30.0 # end time for each episode
+  
+  agents:
+    num_evaders: 1
+    num_pursuers: 2
+    use_pursuer_heuristics: false
+    ai_pursuers: false
+    use_pronav: true
+
+    interaction:
+      bubble_radius: 5 # wing span o  f aircraft
+      capture_radius: 20.0 # capture target radius
+
+    relative_state_observations:
+      position:
+        x:
+          low: -1500
+          high: 1500
+        y:
+          low: -1500
+          high: 1500
+        z:
+          low: -100
+          high: 100
+
+      velocity:
+        low: -75.0
+        high: 75.0
+
+      heading:
+        low: -3.14159
+        high: 3.14159
+
+    evaders:
+      # observation 
+      is_controlled: true
+      state_limits:
+        x:                # obs_low = np.concatenate([obs_low, [x_low, y_low, z_low]])
+                # obs_high = np.concatenate([obs_high, [x_high, y_high, z_high]])
+          min: -inf
+          max: inf
+        y:
+          min: -inf
+          max: inf
+        z:
+          min: 30.0
+          max: 70.0
+        phi:
+          min: !!float -0.7853981633974483   # -np.deg2rad(45)
+          max: !!float 0.7853981633974483    # np.deg2rad(45)
+        theta:
+          min: !!float -0.4363323129985824   # -np.deg2rad(25)
+          max: !!float 0.3490658503988659    # np.deg2rad(20)
+        psi:
+          min: !!float -3.14159   # -np.deg2rad(360)
+          max: !!float 3.14159     # np.deg2rad(360)
+        v:
+          min: 12.0
+          max: 30.0
+        vx:
+          min: -35.0
+          max: 35.0
+        vy:
+          min: -35.0
+          max: 35.0
+        vz:
+          min: -35.0
+          max: 35.0
+
+      control_limits:
+        u_phi:
+          min: !!float -0.7853981633974483   # -np.deg2rad(45)
+          max: !!float 0.7853981633974483    # np.deg2rad(45)
+        # u_theta:
+        #   min: !!float -0.4363323129985824   # -np.deg2rad(25)
+        #   max: !!float 0.3490658503988659    # np.deg2rad(20)
+        u_dz:
+          min: -5.0
+          max: 5.0
+        u_psi:
+          min: !!float -3.14159 #radians
+          max: !!float 3.14159  #radians
+        v_cmd:
+          min: 15.0
+          max: 30
+
+    pursuers:
+      # observation 
+      is_controlled: true
+      state_limits:
+        x:
+          min: -inf
+          max: inf
+        y:
+          min: -inf
+          max: inf
+        z:
+          min: 30.0
+          max: 70.0
+        phi:
+          min: !!float -0.7853981633974483   # -np.deg2rad(45)
+          max: !!float 0.7853981633974483    # np.deg2rad(45)
+        theta:
+          min: !!float -0.4363323129985824   # -np.deg2rad(25)
+          max: !!float 0.3490658503988659    # np.deg2rad(20)
+        psi:
+          min: !!float -3.14159    # -np.deg2rad(180)
+          max: !!float 3.14159     # np.deg2rad(180)
+        v:
+          min: 12.0
+          max: 35.0
+        vx:
+          min: -35.0
+          max: 35.0
+        vy:
+          min: -35.0
+          max: 35.0
+        vz:
+          min: -35.0
+          max: 35.0
+
+      control_limits:
+        u_phi:
+          min: !!float -0.7853981633974483   # -np.deg2rad(45)
+          max: !!float 0.7853981633974483    # np.deg2rad(45)
+        # u_theta:
+        #   min: !!float -0.4363323129985824   # -np.deg2rad(25)
+        #   max: !!float 0.3490658503988659    # np.deg2rad(20)
+        u_dz:
+          min: -5.0
+          max: 5.0
+        u_psi:
+          min: !!float -3.14159 #radians
+          max: !!float 3.14159  #radians
+        v_cmd:
+          min: 20.0
+          max: 35.0
+
+
+
