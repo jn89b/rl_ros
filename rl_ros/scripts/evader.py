@@ -136,6 +136,12 @@ OFFENSIVE_IDX = 0
 DEFENSIVE_IDX = 1
 
 class EvaderNode(Node):
+    
+    """
+    #TODO: ADD docstring and also failchecks
+    Failchecks are :
+        - If I'm going too far out of bounds switch to offensive policy
+    """
     def __init__(self, ns='',
                  evader_policy: SimpleEnvMaskModule = None,
                  hrl_policy: SimpleEnvMaskModule = None,
@@ -160,8 +166,9 @@ class EvaderNode(Node):
         self.state_enu: np.ndarray = np.zeros(7)
         self.velocities: np.ndarray = np.zeros(3)
         self.target_location: np.ndarray = np.array(
-            [0, 150, 65.0])
-        
+            [-50, 150, 65.0])
+        self.won:bool = False
+        self.win_distance:float = 45.0
         self.pub_traj = self.create_publisher(
             CtlTraj, 'trajectory', 10)
         
@@ -177,18 +184,22 @@ class EvaderNode(Node):
             self.pursuer_callback, 
             qos_profile=SENSOR_QOS)
         
+        self.pursuer_2_sub = self.create_subscription(
+            Odometry, 
+            'pursuer_2/odometry', 
+            self.pursuer_two_callback, 
+            qos_profile=SENSOR_QOS)
+        
         self.pursuer_relative_states: np.array = np.zeros(5)
+        self.pursuer_two_relative_states: np.array = np.zeros(5)
         self.initialized = False
         # Used to switch between two policies
-        self.hrl_policy_timer:float = 0.25
+        self.hrl_policy_timer:float = 0.5
         self.start_time: float = self.get_clock().now().nanoseconds/1e9
         self.current_policy:int = None
         self.police_switch:List[int] = [OFFENSIVE_IDX, DEFENSIVE_IDX]
         self.timer_period: float = 0.05
         self.offset_states = np.zeros(7)
-        
-        # self.timer = self.create_timer(
-        #     self.timer_period, self.step)
 
     def enu_callback(
         self, msg: mavros.local_position.Odometry) -> None:
@@ -237,7 +248,6 @@ class EvaderNode(Node):
             
         self.step()
         
-        
     def pursuer_callback(
         self, msg: Odometry) -> None:
         x = msg.pose.pose.position.x
@@ -276,6 +286,41 @@ class EvaderNode(Node):
         # self.publish_traj(action)
         self.step()
         
+    def pursuer_two_callback(
+        self, msg: Odometry) -> None:
+        """
+        """
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
+        z = msg.pose.pose.position.z
+        qx = msg.pose.pose.orientation.x
+        qy = msg.pose.pose.orientation.y
+        qz = msg.pose.pose.orientation.z
+        qw = msg.pose.pose.orientation.w
+        
+        roll, pitch, yaw = euler_from_quaternion(qx, qy, qz, qw)
+        vx = msg.twist.twist.linear.x
+        vy = msg.twist.twist.linear.y
+        vz = msg.twist.twist.linear.z
+        
+        # get magnitude of velocity
+        speed = np.sqrt(vx**2 + vy**2 + vz**2)
+        
+        relative_x = self.state_enu[0] - x
+        relative_y = self.state_enu[1] - y
+        relative_z = self.state_enu[2] - z
+        relative_speed = self.state_enu[6] - speed
+        relative_heading = self.state_enu[5] - yaw
+        # wrap relative heading to -pi to pi
+        relative_heading = (relative_heading + np.pi) % (2 * np.pi) - np.pi
+        self.pursuer_two_callback = np.array([
+            relative_x,
+            relative_y,
+            relative_z,
+            relative_speed,
+            relative_heading
+        ])
+
     def update_evader_in_env(self) -> None:
         self.evader.state_vector.x = self.state_enu[X_IDX]
         self.evader.state_vector.y = self.state_enu[Y_IDX]
@@ -340,7 +385,7 @@ class EvaderNode(Node):
         obs = np.concatenate(
             (obs, self.pursuer_relative_states), axis=0)
         obs = np.concatenate(
-            (obs, self.pursuer_relative_states), axis=0)
+            (obs, self.pursuer_two_relative_states), axis=0)
                 
         # Get the action relative to the pursuer 
         obs = np.array(obs, dtype=np.float32)
@@ -424,7 +469,11 @@ class EvaderNode(Node):
             target_pos:np.ndarray = np.array(self.target_location[0:3])
             relative_pos:List[float] = target_pos - current_pos
             distance = np.linalg.norm(relative_pos)
-            # print(f"Distance to target: {distance}")
+            print(f"Distance to target: {distance}")
+            if distance <= self.win_distance:
+                print("Won the game")
+                self.won = True
+            
             #relative_vel: float = self.target_location[VX_IDX] - self.enu_state[VX_IDX]
             relative_vel: float = self.state_enu[VX_IDX]
             max_vel:float = 30.0
@@ -458,9 +507,7 @@ class EvaderNode(Node):
         kp:float = 0.25
         roll_cmd:float = kp * rel_yaw_cmd
         roll_cmd = np.clip(roll_cmd, -np.deg2rad(45), np.deg2rad(45))
-        
-        ref_height = 65.0
-        
+                 
         #dz:float = ref_height - self.state_enu[Z_IDX]
         dz = actions[0]
         kp_pitch:float = 0.1
@@ -515,8 +562,18 @@ class EvaderNode(Node):
         self.curent_time = self.get_clock().now().nanoseconds/1e9
         # convert to seconds
         elapsed_time: float = self.curent_time - self.start_time
-        self.current_policy = 0
         # Need to update the timer to switch between policies
+        if self.won:
+            self.target_location[0] = 0.0
+            self.target_location[1] = 0.0
+            self.target_location[2] = 45.0
+            self.current_policy = OFFENSIVE_IDX
+            observation = self.get_pursuer_observation()
+            action = self.get_pursuer_action(observation)
+            self.publish_traj(action)
+            print("Won the game")
+            return
+        
         if self.current_policy is None or elapsed_time >= self.hrl_policy_timer:
             self.current_policy = self.get_high_level_action()
             self.start_time = self.get_clock().now().nanoseconds/1e9

@@ -85,7 +85,7 @@ tune.register_env("pursuer_evader_env", lambda config:
 class PursuerNode(Node):
     def __init__(self, ns='',
                  use_pn: bool = True):
-        super().__init__('pursuer_node')
+        super().__init__('pursuer_node_2')
         
         # make params to set offset positions
         self.declare_parameter('offset_x', -200.0)
