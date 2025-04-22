@@ -154,6 +154,8 @@ class EvaderNode(Node):
         self.offensive_policy = offensive_policy
         self.env = env
         self.use_pn: bool = True
+        self.x_bounds: List[float] = [-500, 10]
+        self.y_bounds: List[float] = [-500, 400]
         if self.use_pn:
             self.pronav: ProNavV2 = ProNavV2()
         else:
@@ -166,7 +168,7 @@ class EvaderNode(Node):
         self.state_enu: np.ndarray = np.zeros(7)
         self.velocities: np.ndarray = np.zeros(3)
         self.target_location: np.ndarray = np.array(
-            [-50, 150, 65.0])
+            [-150, 150, 65.0])
         self.won:bool = False
         self.win_distance:float = 45.0
         self.pub_traj = self.create_publisher(
@@ -520,11 +522,14 @@ class EvaderNode(Node):
         airspeed_error = actions[CMD_AIRSPEED_IDX] - self.state_enu[6]
         kp_airspeed:float = 0.25
         airspeed_cmd:float = kp_airspeed * airspeed_error
-        min_thrust:float = 0.05
-        max_thrust:float = 0.95
+        min_thrust:float = 0.15
+        max_thrust:float = 0.85
         thrust_cmd:float = np.clip(
             airspeed_cmd, min_thrust, max_thrust)
-        # thrust_cmd = 0.5)
+        
+        if self.won:
+            thrust_cmd = 0.5
+        
         trajectory: CtlTraj = CtlTraj()
         trajectory.roll = [roll_cmd, roll_cmd]
         trajectory.pitch = [pitch_cmd, pitch_cmd]
@@ -564,7 +569,7 @@ class EvaderNode(Node):
         elapsed_time: float = self.curent_time - self.start_time
         # Need to update the timer to switch between policies
         if self.won:
-            self.target_location[0] = 0.0
+            self.target_location[0] = -100.0
             self.target_location[1] = 0.0
             self.target_location[2] = 45.0
             self.current_policy = OFFENSIVE_IDX
@@ -573,6 +578,18 @@ class EvaderNode(Node):
             self.publish_traj(action)
             print("Won the game")
             return
+        
+        if self.state_enu[0] < self.x_bounds[0] or \
+            self.state_enu[0] > self.x_bounds[1] or \
+            self.state_enu[1] < self.y_bounds[0] or \
+            self.state_enu[1] > self.y_bounds[1]:
+                self.current_policy = OFFENSIVE_IDX
+                observation = self.get_pursuer_observation()
+                action = self.get_pursuer_action(observation)
+                self.publish_traj(action)
+                print("Out of bounds", 
+                      self.state_enu[0], self.state_enu[1])
+                return
         
         if self.current_policy is None or elapsed_time >= self.hrl_policy_timer:
             self.current_policy = self.get_high_level_action()

@@ -127,9 +127,9 @@ class PursuerNode(Node):
         """
         Spawn the pursuer
         """
-        # self.enu_state[X_IDX] = self.target_enu[X_IDX] + self.offset_x
-        # self.enu_state[Y_IDX] = self.target_enu[Y_IDX] + self.offset_y
-        # self.enu_state[Z_IDX] = self.target_enu[Z_IDX] + self.offset_z
+        self.enu_state[X_IDX] = self.target_enu[X_IDX] + self.offset_x
+        self.enu_state[Y_IDX] = self.target_enu[Y_IDX] + self.offset_y
+        self.enu_state[Z_IDX] = self.target_enu[Z_IDX] + self.offset_z
         self.enu_state[X_IDX] = self.offset_x
         self.enu_state[Y_IDX] = self.offset_y
         self.enu_state[Z_IDX] = self.offset_z
