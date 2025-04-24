@@ -88,9 +88,9 @@ class PursuerNode(Node):
         super().__init__('pursuer_node')
         
         # make params to set offset positions
-        self.declare_parameter('offset_x', 200.0)
-        self.declare_parameter('offset_y', 50.0)
-        self.declare_parameter('offset_z', 45.0) 
+        self.declare_parameter('offset_x', 50.0)
+        self.declare_parameter('offset_y', 75.0)
+        self.declare_parameter('offset_z', 50.0) 
         self.declare_parameter('offset_yaw_dg', 0.0) 
         self.offset_x: float = self.get_parameter('offset_x').value
         self.offset_y: float = self.get_parameter('offset_y').value

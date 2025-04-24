@@ -23,12 +23,10 @@ from ray.rllib.core.rl_module.rl_module import RLModule
 from re import S
 from jarvis.algos.pro_nav import ProNavV2
 
-
+from rl_ros.PID import PID, FirstOrderFilter
 from rclpy.node import Node
-from rclpy.duration import Duration
-from rclpy.publisher import Publisher
 from nav_msgs.msg import Odometry
-from std_msgs.msg import String
+from std_msgs.msg import Int32
 from ament_index_python.packages import get_package_share_directory
 from mavros.base import SENSOR_QOS
 from ros_mpc.rotation_utils import (
@@ -117,7 +115,6 @@ def get_relative_ned_yaw_cmd(
     return wrap_to_pi(yaw_cmd)
 
 
-
 X_IDX = 0
 Y_IDX = 1
 Z_IDX = 2
@@ -156,6 +153,8 @@ class EvaderNode(Node):
         self.use_pn: bool = True
         self.x_bounds: List[float] = [-500, 10]
         self.y_bounds: List[float] = [-500, 400]
+        self.z_bounds: List[float] = [40, 80]
+        
         if self.use_pn:
             self.pronav: ProNavV2 = ProNavV2()
         else:
@@ -167,8 +166,11 @@ class EvaderNode(Node):
         self.state_enu: np.ndarray = np.zeros(7)
         self.state_enu: np.ndarray = np.zeros(7)
         self.velocities: np.ndarray = np.zeros(3)
+        
         self.target_location: np.ndarray = np.array(
             [-150, 150, 65.0])
+        self.final_z_offset: float = -5.0
+        
         self.won:bool = False
         self.win_distance:float = 45.0
         self.pub_traj = self.create_publisher(
@@ -192,6 +194,9 @@ class EvaderNode(Node):
             self.pursuer_two_callback, 
             qos_profile=SENSOR_QOS)
         
+        self.policy_pub = self.create_publisher(
+            Int32, 'policy', 10)
+        
         self.pursuer_relative_states: np.array = np.zeros(5)
         self.pursuer_two_relative_states: np.array = np.zeros(5)
         self.initialized = False
@@ -202,6 +207,25 @@ class EvaderNode(Node):
         self.police_switch:List[int] = [OFFENSIVE_IDX, DEFENSIVE_IDX]
         self.timer_period: float = 0.05
         self.offset_states = np.zeros(7)
+        
+        self.dz_filter : FirstOrderFilter = FirstOrderFilter(
+            tau=0.45, dt=0.025, x0=0.0)
+        self.yaw_filter : FirstOrderFilter = FirstOrderFilter(
+            tau=0.4, dt=0.025, x0=0.0)
+        
+        self.dz_controller: PID = PID(
+            kp=0.05, ki=0.0, kd=0.01,
+            min_constraint=np.deg2rad(-12),
+            max_constraint=np.deg2rad(5),
+            use_derivative=True,
+            dt = 0.025)
+        
+        self.roll_controller: PID = PID(
+            kp=0.25, ki=0.0, kd=0.05,
+            min_constraint=np.deg2rad(-45),
+            max_constraint=np.deg2rad(45),
+            use_derivative=True,
+            dt = 0.025)
 
     def enu_callback(
         self, msg: mavros.local_position.Odometry) -> None:
@@ -505,39 +529,75 @@ class EvaderNode(Node):
         ned_yaw_state = yaw_enu_to_ned(self.state_enu[YAW_IDX]) 
         rel_yaw_cmd:float = get_relative_ned_yaw_cmd(
             ned_yaw_state, ned_yaw_rad)
+        # rel_yaw_cmd = np.clip(
+        #     rel_yaw_cmd, -np.deg2rad(45), np.deg2rad(45))
+        rel_yaw_cmd = self.yaw_filter.filter(
+            rel_yaw_cmd)
+        # relative yaw command is already computed as error 
+        # so we set setpoint to 0.0
+        if self.roll_controller.prev_error is None:
+            self.roll_controller.prev_error = 0.0
+            
+        roll_cmd = self.roll_controller.compute(
+            setpoint=rel_yaw_cmd,
+            current_value=0.0,
+            dt=0.05
+        )
         
-        kp:float = 0.25
-        roll_cmd:float = kp * rel_yaw_cmd
+        # make sure the roll command has the same sign convention as 
+        # the yaw command
+        if rel_yaw_cmd < 0.0 and roll_cmd > 0.0:
+            roll_cmd = -roll_cmd
+        elif rel_yaw_cmd > 0.0 and roll_cmd < 0.0:
+            roll_cmd = -roll_cmd
+            
+        # kp:float = 0.25
+        # roll_cmd:float = kp * rel_yaw_cmd
         roll_cmd = np.clip(roll_cmd, -np.deg2rad(45), np.deg2rad(45))
                  
         #dz:float = ref_height - self.state_enu[Z_IDX]
         dz = actions[0]
-        kp_pitch:float = 0.1
-        pitch_cmd:float = kp_pitch * (dz)
-        pitch_cmd = np.clip(pitch_cmd, -np.deg2rad(15), np.deg2rad(10))
-        # pitch_cmd = float(actions[CMD_PITCH_IDX])
-        # create a trajectory message
+        # dz is already computed in the model so set setpoint as dz
+        # and the current value as 0.0
+        dz = self.dz_filter.filter(dz)
+        dz = np.clip(dz, -10.0, 10.0)
+        if self.dz_controller.prev_error is None:
+            self.dz_controller.prev_error = 0.0
+            
+        pitch_cmd:float = self.dz_controller.compute(
+            setpoint=dz,
+            current_value=0.0,
+            dt=0.05
+        )
+        pitch_cmd = np.clip(pitch_cmd, -np.deg2rad(12), np.deg2rad(10))
         
         # airspeed command
         airspeed_error = actions[CMD_AIRSPEED_IDX] - self.state_enu[6]
         kp_airspeed:float = 0.25
         airspeed_cmd:float = kp_airspeed * airspeed_error
-        min_thrust:float = 0.15
-        max_thrust:float = 0.85
+        min_thrust:float = 0.35
+        max_thrust:float = 0.65
         thrust_cmd:float = np.clip(
             airspeed_cmd, min_thrust, max_thrust)
         
         if self.won:
             thrust_cmd = 0.5
-        
+        dz = float(dz)
         trajectory: CtlTraj = CtlTraj()
+        trajectory.header.stamp = self.get_clock().now().to_msg()
         trajectory.roll = [roll_cmd, roll_cmd]
         trajectory.pitch = [pitch_cmd, pitch_cmd]
         trajectory.yaw = [rel_yaw_cmd, rel_yaw_cmd]
         trajectory.thrust = [thrust_cmd, thrust_cmd]
+        trajectory.z = [dz, dz, dz]
         trajectory.idx = int(0)
         
         self.pub_traj.publish(trajectory)
+        
+        # publish the policy
+        policy_msg = Int32()
+        policy_msg.data = self.current_policy
+        self.policy_pub.publish(policy_msg)
 
     def get_high_level_action(self) -> int:
         """
@@ -571,7 +631,7 @@ class EvaderNode(Node):
         if self.won:
             self.target_location[0] = -100.0
             self.target_location[1] = 0.0
-            self.target_location[2] = 45.0
+            self.target_location[2] = 60.0
             self.current_policy = OFFENSIVE_IDX
             observation = self.get_pursuer_observation()
             action = self.get_pursuer_action(observation)
@@ -582,7 +642,9 @@ class EvaderNode(Node):
         if self.state_enu[0] < self.x_bounds[0] or \
             self.state_enu[0] > self.x_bounds[1] or \
             self.state_enu[1] < self.y_bounds[0] or \
-            self.state_enu[1] > self.y_bounds[1]:
+            self.state_enu[1] > self.y_bounds[1] or \
+                self.state_enu[2] < self.z_bounds[0] or \
+                    self.state_enu[2] > self.z_bounds[1]:
                 self.current_policy = OFFENSIVE_IDX
                 observation = self.get_pursuer_observation()
                 action = self.get_pursuer_action(observation)
