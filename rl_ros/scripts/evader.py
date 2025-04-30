@@ -201,7 +201,7 @@ class EvaderNode(Node):
         self.pursuer_two_relative_states: np.array = np.zeros(5)
         self.initialized = False
         # Used to switch between two policies
-        self.hrl_policy_timer:float = 0.5
+        self.hrl_policy_timer:float = 0.25
         self.start_time: float = self.get_clock().now().nanoseconds/1e9
         self.current_policy:int = None
         self.police_switch:List[int] = [OFFENSIVE_IDX, DEFENSIVE_IDX]
@@ -209,14 +209,14 @@ class EvaderNode(Node):
         self.offset_states = np.zeros(7)
         
         self.dz_filter : FirstOrderFilter = FirstOrderFilter(
-            tau=0.45, dt=0.025, x0=0.0)
+            tau=0.5, dt=0.025, x0=0.0)
         self.yaw_filter : FirstOrderFilter = FirstOrderFilter(
             tau=0.4, dt=0.025, x0=0.0)
         
         self.dz_controller: PID = PID(
-            kp=0.05, ki=0.0, kd=0.01,
+            kp=0.025, ki=0.0, kd=0.01,
             min_constraint=np.deg2rad(-12),
-            max_constraint=np.deg2rad(5),
+            max_constraint=np.deg2rad(10),
             use_derivative=True,
             dt = 0.025)
         

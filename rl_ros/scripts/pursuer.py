@@ -98,7 +98,7 @@ class PursuerNode(Node):
         self.offset_yaw_dg: float = self.get_parameter('offset_yaw_dg').value
         self.target_enu: np.ndarray = np.zeros(7)
         self.enu_state: np.ndarray = np.zeros(7)
-        self.max_vel: float = 30.0
+        self.max_vel: float = 26.0
 
         # Need to flag this with pursuer id number 
         self.use_pn:bool = use_pn
