@@ -23,10 +23,13 @@ from ray.rllib.core.rl_module.rl_module import RLModule
 from re import S
 from jarvis.algos.pro_nav import ProNavV2
 
-from rl_ros.PID import PID, FirstOrderFilter
+from rl_ros.PID import PID
+from rl_ros.PID import FirstOrderFilter
 from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.publisher import Publisher
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Int32
+from std_msgs.msg import String
 from ament_index_python.packages import get_package_share_directory
 from mavros.base import SENSOR_QOS
 from ros_mpc.rotation_utils import (
@@ -154,7 +157,6 @@ class EvaderNode(Node):
         self.x_bounds: List[float] = [-500, 10]
         self.y_bounds: List[float] = [-500, 400]
         self.z_bounds: List[float] = [40, 80]
-        
         if self.use_pn:
             self.pronav: ProNavV2 = ProNavV2()
         else:
@@ -194,14 +196,11 @@ class EvaderNode(Node):
             self.pursuer_two_callback, 
             qos_profile=SENSOR_QOS)
         
-        self.policy_pub = self.create_publisher(
-            Int32, 'policy', 10)
-        
         self.pursuer_relative_states: np.array = np.zeros(5)
         self.pursuer_two_relative_states: np.array = np.zeros(5)
         self.initialized = False
         # Used to switch between two policies
-        self.hrl_policy_timer:float = 0.25
+        self.hrl_policy_timer:float = 0.5
         self.start_time: float = self.get_clock().now().nanoseconds/1e9
         self.current_policy:int = None
         self.police_switch:List[int] = [OFFENSIVE_IDX, DEFENSIVE_IDX]
@@ -209,14 +208,14 @@ class EvaderNode(Node):
         self.offset_states = np.zeros(7)
         
         self.dz_filter : FirstOrderFilter = FirstOrderFilter(
-            tau=0.5, dt=0.025, x0=0.0)
+            tau=0.45, dt=0.025, x0=0.0)
         self.yaw_filter : FirstOrderFilter = FirstOrderFilter(
             tau=0.4, dt=0.025, x0=0.0)
         
         self.dz_controller: PID = PID(
-            kp=0.025, ki=0.0, kd=0.01,
+            kp=0.1, ki=0.0, kd=0.01,
             min_constraint=np.deg2rad(-12),
-            max_constraint=np.deg2rad(10),
+            max_constraint=np.deg2rad(5),
             use_derivative=True,
             dt = 0.025)
         
@@ -593,11 +592,6 @@ class EvaderNode(Node):
         trajectory.idx = int(0)
         
         self.pub_traj.publish(trajectory)
-        
-        # publish the policy
-        policy_msg = Int32()
-        policy_msg.data = self.current_policy
-        self.policy_pub.publish(policy_msg)
 
     def get_high_level_action(self) -> int:
         """
@@ -616,7 +610,7 @@ class EvaderNode(Node):
         
     def step(self) -> None:
         """
-        Step the model
+        Step the model  
         We're going to need to use the HRL to pick a policy:
         - Offensive
         - Defensive

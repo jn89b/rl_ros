@@ -11,6 +11,9 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import String
 
 
+class SomeClass:
+    
+
 class PubExample(Node):
     def __init__(self, ns=''):
         super().__init__('pub_example')
@@ -20,7 +23,7 @@ class PubExample(Node):
         self.timer_period: float = 0.5
         self.timer = self.create_timer(
             self.timer_period, self.publish_message)
-
+        
     def publish_message(self) -> None:
         msg = String()
         msg.data = "Hello, it's me!"
