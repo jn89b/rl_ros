@@ -57,6 +57,7 @@ install(PROGRAMS
   scripts/guidance_publisher.py
   scripts/pursuer.py
   scripts/evader.py
+  scripts/new_evader.py
   scripts/pursuer_2.py
   scripts/new_pursuer.py
   # scripts/client_member_function.py

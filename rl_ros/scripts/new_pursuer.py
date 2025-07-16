@@ -21,7 +21,7 @@ from ros_mpc.PlaneOptControl import PlaneOptControl
 from optitraj.utils.data_container import MPCParams
 from optitraj.close_loop import CloseLoopSim
 from rl_ros.PID import FirstOrderFilter, PID
-
+from rl_ros.config import PURSUER_ALTITUDE
 from typing import List, Dict, Any, Tuple
 
 X_IDX = 0
@@ -100,7 +100,7 @@ class DirectionalTraj(Node):
         self.num_states = 7
         self.enu_state: np.array = np.array([np.nan]*self.num_states)
         self.target_state: np.array = np.array([np.nan]*self.num_states)
-        self.target_state[2] = 50.0 # hardcode this guy to stay at this altitude
+        self.target_state[2] = PURSUER_ALTITUDE[0] # hardcode this guy to stay at this altitude
 
         # self.sub_traj = self.create_subscription(
         #     Telem, 'telem', self.subscribe_telem, 10)
@@ -174,7 +174,7 @@ class DirectionalTraj(Node):
         airspeed_error = states['v'][time_idx] - self.enu_state[6]        
         kp_airspeed:float = 0.25
         airspeed_cmd:float = kp_airspeed * airspeed_error
-        min_thrust:float = 0.4
+        min_thrust:float = 0.3
         max_thrust:float = 0.7
         thrust_cmd:float = np.clip(
             airspeed_cmd, min_thrust, max_thrust)
@@ -411,8 +411,6 @@ def main(args=None):
             start_sol_time: float = time.time()
             closed_loop_sim.x_init = traj_node.enu_state
             xF = traj_node.target_state
-            print("target state: ", xF)
-            print("Current state: ", traj_node.enu_state)
             solution: Dict[str, Any] = closed_loop_sim.run_single_step(
                 xF=xF,
                 x0=traj_node.enu_state,
