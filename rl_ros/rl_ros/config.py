@@ -2,7 +2,7 @@
 from typing import List
 
 
-PURSUER_ALTITUDE:List[float] = [35.0, 60.0]
+PURSUER_ALTITUDE:List[float] = [50.0, 60.0]
 EVADER_ALTITUDE:List[float] = [70.0, 85.0]
 X_BOUNDS:List[float] = [-500, 10]
 Y_BOUNDS:List[float] = [-500, 400]
